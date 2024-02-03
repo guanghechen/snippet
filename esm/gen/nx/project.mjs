@@ -1,4 +1,16 @@
+import fs from 'node:fs'
 import path from 'node:path'
+
+/**
+ * @interface
+ * @typedef {Object} IReporter
+ * @property {function(string | unknown, ...unknown[]): void} debug - Logs a debug message.
+ * @property {function(string | unknown, ...unknown[]): void} verbose - Logs a verbose message.
+ * @property {function(string | unknown, ...unknown[]): void} info - Logs an info message.
+ * @property {function(string | unknown, ...unknown[]): void} warn - Logs a warning message.
+ * @property {function(string | unknown, ...unknown[]): void} error - Logs an error message.
+ * @property {function(string | unknown, ...unknown[]): void} fatal - Logs a fatal error message.
+ */
 
 /**
  * @interface
@@ -14,9 +26,37 @@ import path from 'node:path'
  */
 
 /**
- * Generate project.json for the given project.
+ * Generate and write project.json for the given project.
+ *
  * @param {IGenNxProjectParams} params
- * @returns {Promise<void>}
+ * @param {IReporter} [reporter]
+ * @returns {Promise<unknown>}
+ */
+export async function genAndWriteNxProjectJson(params, reporter) {
+  const { workspaceRoot, projectDir } = params
+  const absolutePackageDir = path.resolve(workspaceRoot, projectDir)
+  if (!fs.existsSync(absolutePackageDir)) {
+    reporter?.warn(`skipped. packageDirFromRoot is not found.`, projectDir)
+    return
+  }
+  if (!fs.statSync(absolutePackageDir).isDirectory()) {
+    reporter?.warn(`skipped. packageDirFromRoot is not a folder.`, projectDir)
+    return
+  }
+  const projectJsonPath = path.join(absolutePackageDir, 'project.json')
+  const data = await genNxProjectJson(params)
+  const content = JSON.stringify(data, null, 2) + '\n'
+
+  reporter?.verbose('Writing', projectJsonPath)
+  fs.writeFileSync(projectJsonPath, content, 'utf8')
+  reporter?.info('Wrote', projectJsonPath)
+}
+
+/**
+ * Generate project.json for the given project.
+ *
+ * @param {IGenNxProjectParams} params
+ * @returns {Promise<unknown>}
  */
 export async function genNxProjectJson(params) {
   const {
@@ -121,4 +161,18 @@ export async function genNxProjectJson(params) {
   }
 
   return data
+}
+
+/**
+ * Check if there is a test dir.
+ *
+ * @param {string} absoluteTestDir
+ * @returns {Promise<boolean>}
+ */
+export async function detectTestDir(absoluteTestDir) {
+  const hasTest =
+    fs.existsSync(absoluteTestDir) &&
+    fs.statSync(absoluteTestDir).isDirectory() &&
+    fs.readdirSync(absoluteTestDir).length > 0
+  return hasTest
 }
